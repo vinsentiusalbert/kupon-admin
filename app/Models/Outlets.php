@@ -13,5 +13,6 @@ class Outlets extends Model
         'outlet_name',
         'outlet_code',
         'voucher_code',
+        'created_by',
     ];
 }

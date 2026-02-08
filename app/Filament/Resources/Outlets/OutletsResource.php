@@ -9,6 +9,7 @@ use App\Filament\Resources\Outlets\Schemas\OutletsForm;
 use App\Filament\Resources\Outlets\Tables\OutletsTable;
 use App\Models\Outlets;
 use BackedEnum;
+use Illuminate\Database\Eloquent\Builder;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -30,6 +31,18 @@ class OutletsResource extends Resource
     public static function table(Table $table): Table
     {
         return OutletsTable::configure($table);
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+
+        if (! $user || $user->hasAnyRole(['super_admin', 'admin'])) {
+            return $query;
+        }
+
+        return $query->where('created_by', $user->id);
     }
 
     public static function getRelations(): array

@@ -16,6 +16,7 @@ class Campaigns extends Model
         'image',
         'start_date',
         'end_date',
+        'created_by',
     ];
 
     protected $casts = [
