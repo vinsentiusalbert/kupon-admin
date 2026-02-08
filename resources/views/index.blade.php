@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Chatime Promo</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ $campaign?->campaign_name ?? '' }} Promo</title>
     <style>
         body {
             background-color: #dcdcdc;
@@ -25,6 +26,11 @@
             text-align: center;
             position: relative;
             font-size: 14px;
+            transition: transform 0.4s ease;
+            will-change: transform;
+        }
+        body.modal-open .container {
+            transform: translateX(-120%);
         }
         .logo {
             padding: 20px 0 10px;
@@ -184,95 +190,222 @@
 
 
         .modal {
+            position: fixed;
+            inset: 0;
+            background: #dcdcdc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .modal.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-box {
+            width: 320px;
+            background: #fff;
+            border-radius: 24px;
+            padding: 20px;
+            text-align: center;
+            transform: translateX(110%);
+            transition: transform 0.4s ease;
+            will-change: transform;
+        }
+        .modal.is-open .modal-box {
+            transform: translateX(0);
+        }
+
+        .modal-logo img {
+            height: 40px;
+            margin-bottom: 10px;
+        }
+
+        .modal-box h3 {
+            margin: 10px 0 5px;
+            font-size: 18px;
+        }
+
+        .subtitle {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+.result-box {
+    display: none;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #e9f9ee;
+    color: #1f7a3e;
+    font-size: 13px;
+    text-align: center;
+}
+.result-box.is-error {
+    background: #fdecec;
+    color: #b53a3a;
+}
+.notif-modal {
     position: fixed;
     inset: 0;
-    background: #dcdcdc;
-    display: none;
+    display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 999;
+    background: rgba(220, 220, 220, 0.6);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 1000;
 }
-
-.modal-box {
+.notif-modal.is-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+.notif-box {
     width: 320px;
     background: #fff;
     border-radius: 24px;
-    padding: 20px;
+    padding: 16px 16px 18px;
     text-align: center;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    transform: translateY(20px) scale(0.95);
+    opacity: 0;
+    transition: transform 0.35s ease, opacity 0.35s ease;
 }
-
-.modal-logo img {
+.notif-modal.is-open .notif-box {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+}
+.notif-logo img {
     height: 40px;
-    margin-bottom: 10px;
+    margin: 2px 0 10px;
 }
-
-.modal-box h3 {
-    margin: 10px 0 5px;
-    font-size: 18px;
-}
-
-.subtitle {
-    font-size: 12px;
-    color: #666;
-    margin-bottom: 15px;
-}
-
-#outletCode {
+.notif-image {
     width: 100%;
-    max-width: 280px;
-    box-sizing: border-box;
-    margin: 0 auto 15px;
-    font-size: 22px;
-    text-align: center;
-    padding: 10px;
-    border-radius: 12px;
-    border: 1px solid #ccc;
-    letter-spacing: 6px;
+    height: 220px;
+    border-radius: 18px;
+    background: #f4f4f4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-
-
-.keypad {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-}
-
-.keypad button {
-    height: 60px;
-    font-size: 20px;
+.notif-check {
+    width: 120px;
+    height: 120px;
     border-radius: 50%;
-    border: none;
-    background: #f2f2f2;
-    cursor: pointer;
-}
-
-.key-clear {
-    background: #1abc9c !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 64px;
+    font-weight: 900;
     color: #fff;
 }
-
-.key-submit {
-    background: #e74c3c !important;
-    color: #fff;
+.notif-check.success {
+    background: #27ae60;
+    box-shadow: 0 12px 20px rgba(39, 174, 96, 0.35);
 }
-
-.back-btn {
-    margin-top: 15px;
-    font-size: 14px;
+.notif-check.error {
+    background: #e74c3c;
+    box-shadow: 0 12px 20px rgba(231, 76, 60, 0.35);
+}
+.notif-title {
+    font-size: 18px;
+    font-weight: 800;
+    margin: 12px 0 6px;
+}
+.notif-info {
+    font-size: 13px;
     color: #555;
-    cursor: pointer;
+    margin: 0 0 10px;
 }
+.notif-kv {
+    background: #f7f7f7;
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #333;
+}
+.notif-kv strong {
+    display: block;
+    font-size: 11px;
+    color: #888;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.notif-btn {
+    background: #f53636;
+    color: #fff;
+    border: none;
+    border-radius: 18px;
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 12px;
+    box-shadow: 0 0 14px rgba(245, 54, 54, 0.35);
+}
+
+        #outletCode {
+            width: 100%;
+            max-width: 280px;
+            box-sizing: border-box;
+            margin: 0 auto 15px;
+            font-size: 22px;
+            text-align: center;
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid #ccc;
+            letter-spacing: 6px;
+        }
+
+
+        .keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .keypad button {
+            height: 60px;
+            font-size: 20px;
+            border-radius: 50%;
+            border: none;
+            background: #f2f2f2;
+            cursor: pointer;
+        }
+
+        .key-clear {
+            background: #1abc9c !important;
+            color: #fff;
+        }
+
+        .key-submit {
+            background: #e74c3c !important;
+            color: #fff;
+        }
+
+        .back-btn {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #555;
+            cursor: pointer;
+        }
 
     </style>
 </head>
 <body>
     <div class="container" >
         <div class="logo-floating">
-            <img src="{{ $logoUrl }}" alt="{{ $campaign?->campaign_name ?? 'Chatime' }} Logo" style="height:40px;"/>
+            <img src="{{ $logoUrl }}" alt="{{ $campaign?->campaign_name ?? '' }} Logo" style="height:40px;"/>
         </div>
         <div class="promo-section">
             <div class="promo-image">
-                <img src="{{ $imageUrl }}" alt="{{ $campaign?->campaign_title ?? 'Chatime Promo' }}" />
+                <img src="{{ $imageUrl }}" alt="{{ $campaign?->campaign_title ?? 'Promo' }}" />
             </div>
             
         </div>
@@ -304,7 +437,7 @@
             </div>
         <div class="content-section">
             <div class="location">
-                Tukar kupon digital ini di outlet <strong>Chatime</strong><br />
+                Tukar kupon digital ini di outlet <br />
                 <a href="#" target="_blank">📍 Lokasi Penukaran</a>
             </div>
             <button class="btn-red" onclick="openModal()">TUKAR KUPON</button>
@@ -323,46 +456,110 @@
 
 
 
+    
     <!-- MODAL INPUT KODE OUTLET -->
-<div class="modal" id="outletModal">
+    <div class="modal" id="outletModal">
         <div class="modal-box">
             <div class="modal-logo">
-                <img src="{{ $logoUrl }}" alt="{{ $campaign?->campaign_name ?? 'Chatime' }}">
+                <img src="{{ $logoUrl }}" alt="{{ $campaign?->campaign_name ?? '' }}">
             </div>
 
-        <h3>Masukkan Code Outlet</h3>
-        <p class="subtitle">Silahkan minta kode outlet dari kasir untuk validasi</p>
+            <h3>Masukkan Code Outlet</h3>
+            <p class="subtitle">Silahkan minta kode outlet dari kasir untuk validasi</p>
 
-        <input type="password" id="outletCode" maxlength="6" readonly />
+            <input type="password" id="outletCode" maxlength="6" readonly />
 
-        <div class="keypad">
-            <button onclick="pressKey(1)">1</button>
-            <button onclick="pressKey(2)">2</button>
-            <button onclick="pressKey(3)">3</button>
-            <button onclick="pressKey(4)">4</button>
-            <button onclick="pressKey(5)">5</button>
-            <button onclick="pressKey(6)">6</button>
-            <button onclick="pressKey(7)">7</button>
-            <button onclick="pressKey(8)">8</button>
-            <button onclick="pressKey(9)">9</button>
+            <div class="keypad">
+                <button onclick="pressKey(1)">1</button>
+                <button onclick="pressKey(2)">2</button>
+                <button onclick="pressKey(3)">3</button>
+                <button onclick="pressKey(4)">4</button>
+                <button onclick="pressKey(5)">5</button>
+                <button onclick="pressKey(6)">6</button>
+                <button onclick="pressKey(7)">7</button>
+                <button onclick="pressKey(8)">8</button>
+                <button onclick="pressKey(9)">9</button>
 
-            <button class="key-clear" onclick="clearKey()">⌫</button>
-            <button onclick="pressKey(0)">0</button>
-            <button class="key-submit" onclick="submitCode()">✓</button>
+                <button class="key-clear" onclick="clearKey()">⌫</button>
+                <button onclick="pressKey(0)">0</button>
+                <button class="key-submit" onclick="submitCode()">✓</button>
+            </div>
+
+            <div id="resultBox" class="result-box"></div>
+
+            <div class="back-btn" onclick="closeModal()">< Back</div>
         </div>
-
-        <div class="back-btn" onclick="closeModal()">‹ Back</div>
     </div>
-</div>
 
-    <script>
+
+    <!-- NOTIFICATION MODAL -->
+    <div class="notif-modal" id="notifModal">
+        <div class="notif-box">
+            <div class="notif-logo">
+                <img src="{{ $logoUrl }}" alt="{{ $campaign?->campaign_name ?? '' }}">
+            </div>
+            <div class="notif-image">
+                <div id="notifCheck" class="notif-check success">✓</div>
+            </div>
+            <div id="notifTitle" class="notif-title">Berhasil</div>
+            <p id="notifInfo" class="notif-info">Kupon berhasil ditukarkan</p>
+            <div class="notif-kv">
+                <strong>Voucher</strong>
+                <span id="notifVoucher">-</span>
+            </div>
+            <div class="notif-kv" style="margin-top:8px;">
+                <strong>Outlet</strong>
+                <span id="notifOutlet">-</span>
+            </div>
+            <button class="notif-btn" onclick="closeNotif()">OK</button>
+        </div>
+    </div>
+
+<script>
     function openModal() {
-        document.getElementById('outletModal').style.display = 'flex';
+        document.body.classList.add('modal-open');
+        document.getElementById('outletModal').classList.add('is-open');
     }
 
     function closeModal() {
-        document.getElementById('outletModal').style.display = 'none';
+        document.body.classList.remove('modal-open');
+        document.getElementById('outletModal').classList.remove('is-open');
         document.getElementById('outletCode').value = '';
+        const resultBox = document.getElementById('resultBox');
+        if (resultBox) {
+            resultBox.style.display = 'none';
+            resultBox.classList.remove('is-error');
+            resultBox.textContent = '';
+        }
+    }
+
+    function openNotif(type, title, text, voucher, outlet) {
+        const modal = document.getElementById('notifModal');
+        const check = document.getElementById('notifCheck');
+        const t = document.getElementById('notifTitle');
+        const msg = document.getElementById('notifInfo');
+        const v = document.getElementById('notifVoucher');
+        const o = document.getElementById('notifOutlet');
+
+        if (type === 'error') {
+            check.classList.remove('success');
+            check.classList.add('error');
+            check.textContent = 'X';
+        } else {
+            check.classList.remove('error');
+            check.classList.add('success');
+            check.textContent = '✓';
+        }
+
+        t.textContent = title;
+        msg.textContent = text;
+        v.textContent = voucher || '-';
+        o.textContent = outlet || '-';
+        modal.classList.add('is-open');
+    }
+
+    function closeNotif() {
+        document.getElementById('notifModal').classList.remove('is-open');
     }
 
     function pressKey(num) {
@@ -379,13 +576,39 @@
 
     function submitCode() {
         let code = document.getElementById('outletCode').value;
-        if (code.length < 4) {
-            alert('Kode outlet belum lengkap');
-            return;
-        }
+        const resultBox = document.getElementById('resultBox');
+        resultBox.classList.remove('is-error');
+        resultBox.style.display = 'none';
 
-        alert('Kode outlet: ' + code);
-        // TODO: kirim ke backend via AJAX / form submit
+        // if (code.length < 4) {
+        //     alert('Kode outlet belum lengkap');
+        //     return;
+        // }
+
+        fetch('{{ route('outlet.check') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            },
+            body: JSON.stringify({ outlet_code: code }),
+        })
+        .then(async (res) => {
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || 'Kode outlet tidak ditemukan.');
+            }
+            resultBox.textContent = 'Sukses! Outlet: ' + data.outlet_name + ' | Voucher: ' + data.voucher_code;
+            resultBox.classList.remove('is-error');
+            resultBox.style.display = 'block';
+            openNotif('success', 'Berhasil', 'Kupon berhasil ditukarkan', data.voucher_code, data.outlet_name);
+        })
+        .catch((err) => {
+            resultBox.textContent = err.message;
+            resultBox.classList.add('is-error');
+            resultBox.style.display = 'block';
+            openNotif('error', 'Coba lagi!', 'Kode outlet tidak valid.', '', '');
+        });
     }
 </script>
 

@@ -14,7 +14,15 @@ class OutletsTable
     {
         return $table
             ->columns([
-                TextColumn::make('campaign_id')
+                TextColumn::make('campaign.campaign_code')
+                    ->label('Campaign')
+                    ->formatStateUsing(function ($state, $record) {
+                        if (! $record->campaign) {
+                            return $record->campaign_id;
+                        }
+
+                        return $record->campaign->campaign_code . ' - ' . $record->campaign->campaign_name;
+                    })
                     ->searchable(),
                 TextColumn::make('outlet_name')
                     ->searchable(),

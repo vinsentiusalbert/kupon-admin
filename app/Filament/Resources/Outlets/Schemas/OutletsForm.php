@@ -3,9 +3,13 @@
 namespace App\Filament\Resources\Outlets\Schemas;
 
 use App\Models\Campaigns;
+use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Str;
 
 class OutletsForm
 {
@@ -33,7 +37,20 @@ class OutletsForm
                 TextInput::make('outlet_code')
                     ->required(),
                 TextInput::make('voucher_code')
-                    ->required(),
+                    ->required()
+                    ->suffixAction(
+                        Action::make('generate_voucher_code')
+                            ->label('Generate')
+                            ->icon(Heroicon::ArrowPath)
+                            ->action(function (Set $set): void {
+                                $set('voucher_code', self::generateVoucherCode());
+                            })
+                    ),
             ]);
+    }
+
+    private static function generateVoucherCode(): string
+    {
+        return Str::upper(Str::random(5));
     }
 }

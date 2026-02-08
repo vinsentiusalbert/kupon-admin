@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Outlets extends Model
 {
@@ -15,4 +16,9 @@ class Outlets extends Model
         'voucher_code',
         'created_by',
     ];
+
+    public function campaign(): BelongsTo
+    {
+        return $this->belongsTo(Campaigns::class, 'campaign_id');
+    }
 }
