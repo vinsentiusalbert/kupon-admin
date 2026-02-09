@@ -1,17 +1,16 @@
 <?php
 
-namespace App\Filament\Resources\Outlets\Schemas;
+namespace App\Filament\Resources\Locations\Schemas;
 
 use App\Models\Campaigns;
-use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Utilities\Set;
-use Filament\Support\Icons\Heroicon;
-use Illuminate\Support\Str;
+use Illuminate\Support\HtmlString;
 
-class OutletsForm
+class LocationsForm
 {
     public static function configure(Schema $schema): Schema
     {
@@ -32,27 +31,29 @@ class OutletsForm
                     })
                     ->searchable()
                     ->required(),
-                TextInput::make('outlet_name')
+                TextInput::make('name')
                     ->required(),
-                TextInput::make('outlet_code')
+                TextInput::make('addresss')
                     ->required(),
-                TextInput::make('voucher_code')
+                TextInput::make('maps')
                     ->required()
-                    ->numeric()
-                    ->rule('integer')
-                    ->suffixAction(
-                        Action::make('generate_voucher_code')
-                            ->label('Generate')
-                            ->icon(Heroicon::ArrowPath)
-                            ->action(function (Set $set): void {
-                                $set('voucher_code', self::generateVoucherCode());
-                            })
-                    ),
-            ]);
-    }
+                    ->url()
+                    ->live(),
+                Placeholder::make('maps_preview')
+                    ->label('Preview')
+                    ->content(function (Get $get): HtmlString {
+                        $maps = trim((string) $get('maps'));
 
-    private static function generateVoucherCode(): string
-    {
-        return (string) random_int(10000, 99999);
+                        if ($maps === '') {
+                            return new HtmlString('-');
+                        }
+
+                        $href = e($maps);
+
+                        return new HtmlString(
+                            '<a href="' . $href . '" target="_blank" rel="noopener noreferrer">Buka di Google Maps</a>'
+                        );
+                    }),
+            ]);
     }
 }

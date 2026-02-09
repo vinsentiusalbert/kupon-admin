@@ -330,19 +330,24 @@
     font-size: 13px;
     color: #333;
 }
-.notif-kv strong {
-    display: block;
-    font-size: 11px;
-    color: #888;
-    font-weight: 700;
-    margin-bottom: 4px;
-}
-.notif-btn {
-    background: #f53636;
-    color: #fff;
-    border: none;
-    border-radius: 18px;
-    padding: 8px 16px;
+        .notif-kv strong {
+            display: block;
+            font-size: 11px;
+            color: #888;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .notif-hint {
+            font-size: 12px;
+            color: #555;
+            margin-top: 10px;
+        }
+        .notif-btn {
+            background: #f53636;
+            color: #fff;
+            border: none;
+            border-radius: 18px;
+            padding: 8px 16px;
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
@@ -396,6 +401,48 @@
             cursor: pointer;
         }
 
+        .location-list {
+            text-align: left;
+            margin-top: 10px;
+        }
+        .location-item {
+            background: #fafafa;
+            border: 1px solid #eee;
+            border-radius: 12px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+        }
+        .location-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 700;
+            cursor: pointer;
+            user-select: none;
+        }
+        .location-chevron {
+            transition: transform 0.25s ease;
+            font-size: 16px;
+        }
+        .location-item.is-open .location-chevron {
+            transform: rotate(180deg);
+        }
+        .location-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .location-body-inner {
+            padding-top: 8px;
+            font-size: 12px;
+            color: #555;
+        }
+        .location-body-inner a {
+            color: #1a73e8;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
     </style>
 </head>
 <body>
@@ -437,12 +484,12 @@
             </div>
         <div class="content-section">
             <div class="location">
-                Tukar kupon digital ini di outlet <br />
-                <a href="#" target="_blank">📍 Lokasi Penukaran</a>
+                Tukar voucher digital ini di outlet <br />
+                <a href="javascript:void(0)" onclick="openLocationModal()">📍 Lokasi Penukaran</a>
             </div>
-            <button class="btn-red" onclick="openModal()">TUKAR KUPON</button>
+            <button class="btn-red" onclick="openModal()">TUKAR VOUCHER</button>
             <div class="terms">
-                Syarat dan Ketentuan Promo &gt;
+               <a href="https://myads.telkomsel.com/" target="_blank"> Syarat dan Ketentuan Promo &gt; </a>
             </div>
             <div class="footer-text">
                 Mau bisnis anda punya iklan seperti ini ? <a href="https://myads.telkomsel.com/" target="_blank">Click here</a>
@@ -457,6 +504,44 @@
 
 
     
+    <!-- MODAL LOCATIONS -->
+    <div class="modal" id="locationModal">
+        <div class="modal-box">
+            <div class="modal-logo">
+                <img src="{{ $logoUrl }}" alt="{{ $campaign?->campaign_name ?? '' }}">
+            </div>
+
+            <h3>Lokasi Penukaran</h3>
+            <p class="subtitle">Pilih lokasi, lihat alamat dan link Maps</p>
+
+            <div class="location-list">
+                @forelse ($locations as $location)
+                    <div class="location-item">
+                        <div class="location-header" onclick="toggleLocation(this)">
+                            <span>{{ $location->name }}</span>
+                            <span class="location-chevron">⌄</span>
+                        </div>
+                        <div class="location-body">
+                            <div class="location-body-inner">
+                                <div>{{ $location->addresss }}</div>
+                                <div style="margin-top:6px;">
+                                    <a href="{{ $location->maps }}" target="_blank" rel="noopener noreferrer">Buka di Google Maps</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                @empty
+                    <div class="location-item">
+                        <div class="location-body-inner">Belum ada lokasi.</div>
+                    </div>
+                @endforelse
+            </div>
+
+            <div class="back-btn" onclick="closeLocationModal()">< Back</div>
+        </div>
+    </div>
+
+
     <!-- MODAL INPUT KODE OUTLET -->
     <div class="modal" id="outletModal">
         <div class="modal-box">
@@ -502,7 +587,7 @@
                 <div id="notifCheck" class="notif-check success">✓</div>
             </div>
             <div id="notifTitle" class="notif-title">Berhasil</div>
-            <p id="notifInfo" class="notif-info">Kupon berhasil ditukarkan</p>
+            <p id="notifInfo" class="notif-info">Voucher berhasil ditukarkan</p>
             <div class="notif-kv">
                 <strong>Voucher</strong>
                 <span id="notifVoucher">-</span>
@@ -510,6 +595,9 @@
             <div class="notif-kv" style="margin-top:8px;">
                 <strong>Outlet</strong>
                 <span id="notifOutlet">-</span>
+            </div>
+            <div id="notifHint" class="notif-hint" style="display:none;">
+                Redeem Voucher ini dengan akses ke <strong>*200*<span id="notifVoucherInline">-</span>#</strong>
             </div>
             <button class="notif-btn" onclick="closeNotif()">OK</button>
         </div>
@@ -533,6 +621,36 @@
         }
     }
 
+    function openLocationModal() {
+        document.body.classList.add('modal-open');
+        document.getElementById('locationModal').classList.add('is-open');
+    }
+
+    function closeLocationModal() {
+        document.body.classList.remove('modal-open');
+        document.getElementById('locationModal').classList.remove('is-open');
+    }
+
+    function toggleLocation(el) {
+        const item = el.closest('.location-item');
+        const body = item.querySelector('.location-body');
+
+        if (item.classList.contains('is-open')) {
+            body.style.maxHeight = '0px';
+            item.classList.remove('is-open');
+            return;
+        }
+
+        document.querySelectorAll('.location-item.is-open').forEach((openItem) => {
+            const openBody = openItem.querySelector('.location-body');
+            openBody.style.maxHeight = '0px';
+            openItem.classList.remove('is-open');
+        });
+
+        item.classList.add('is-open');
+        body.style.maxHeight = body.scrollHeight + 'px';
+    }
+
     function openNotif(type, title, text, voucher, outlet) {
         const modal = document.getElementById('notifModal');
         const check = document.getElementById('notifCheck');
@@ -540,6 +658,8 @@
         const msg = document.getElementById('notifInfo');
         const v = document.getElementById('notifVoucher');
         const o = document.getElementById('notifOutlet');
+        const hint = document.getElementById('notifHint');
+        const vInline = document.getElementById('notifVoucherInline');
 
         if (type === 'error') {
             check.classList.remove('success');
@@ -555,6 +675,8 @@
         msg.textContent = text;
         v.textContent = voucher || '-';
         o.textContent = outlet || '-';
+        vInline.textContent = voucher || '-';
+        hint.style.display = type === 'error' ? 'none' : 'block';
         modal.classList.add('is-open');
     }
 
@@ -591,7 +713,10 @@
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
             },
-            body: JSON.stringify({ outlet_code: code }),
+            body: JSON.stringify({
+                outlet_code: code,
+                campaign_id: '{{ $campaign?->id }}',
+            }),
         })
         .then(async (res) => {
             const data = await res.json();
@@ -601,7 +726,7 @@
             resultBox.textContent = 'Sukses! Outlet: ' + data.outlet_name + ' | Voucher: ' + data.voucher_code;
             resultBox.classList.remove('is-error');
             resultBox.style.display = 'block';
-            openNotif('success', 'Berhasil', 'Kupon berhasil ditukarkan', data.voucher_code, data.outlet_name);
+            openNotif('success', 'Berhasil', 'Voucher berhasil ditukarkan', data.voucher_code, data.outlet_name);
         })
         .catch((err) => {
             resultBox.textContent = err.message;

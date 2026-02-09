@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Campaigns;
+use App\Models\Locations;
 use App\Models\Outlets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -48,6 +49,10 @@ class MicrositeController extends Controller
         // dd(Storage::disk('public')->url($campaign->image));
         return view('index', [
             'campaign' => $campaign,
+            'locations' => Locations::query()
+                ->where('campaign_id', $campaign->id)
+                ->orderBy('name')
+                ->get(),
             'logoUrl' => $campaign?->logo
                 ? Storage::disk('public')->url($campaign->logo)
                 : '',
@@ -64,10 +69,12 @@ class MicrositeController extends Controller
     {
         $data = $request->validate([
             'outlet_code' => ['required', 'string', 'max:20'],
+            'campaign_id' => ['required', 'string'],
         ]);
 
         $outlet = Outlets::query()
             ->where('outlet_code', $data['outlet_code'])
+            ->where('campaign_id', $data['campaign_id'])
             ->first();
 
         if (! $outlet) {
