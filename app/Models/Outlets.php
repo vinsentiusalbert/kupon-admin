@@ -21,4 +21,9 @@ class Outlets extends Model
     {
         return $this->belongsTo(Campaigns::class, 'campaign_id');
     }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 }

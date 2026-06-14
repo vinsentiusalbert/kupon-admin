@@ -2,9 +2,10 @@
 
 namespace App\Filament\Resources\Locations\Schemas;
 
+use App\Filament\Resources\Campaigns\CampaignsResource;
 use App\Models\Campaigns;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
@@ -19,12 +20,12 @@ class LocationsForm
                 Select::make('campaign_id')
                     ->label('Campaign')
                     ->options(function () {
-                        return Campaigns::query()
+                        return CampaignsResource::getEloquentQuery()
                             ->orderBy('campaign_name')
                             ->get()
                             ->mapWithKeys(function (Campaigns $campaign) {
                                 return [
-                                    $campaign->id => $campaign->campaign_code . ' - ' . $campaign->campaign_name,
+                                    $campaign->id => $campaign->campaign_code.' - '.$campaign->campaign_name,
                                 ];
                             })
                             ->all();
@@ -51,7 +52,7 @@ class LocationsForm
                         $href = e($maps);
 
                         return new HtmlString(
-                            '<a href="' . $href . '" target="_blank" rel="noopener noreferrer">Buka di Google Maps</a>'
+                            '<a href="'.$href.'" target="_blank" rel="noopener noreferrer">Buka di Google Maps</a>'
                         );
                     }),
             ]);

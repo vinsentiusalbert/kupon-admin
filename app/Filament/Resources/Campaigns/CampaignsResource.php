@@ -9,11 +9,11 @@ use App\Filament\Resources\Campaigns\Schemas\CampaignsForm;
 use App\Filament\Resources\Campaigns\Tables\CampaignsTable;
 use App\Models\Campaigns;
 use BackedEnum;
-use Illuminate\Database\Eloquent\Builder;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class CampaignsResource extends Resource
 {
@@ -44,7 +44,16 @@ class CampaignsResource extends Resource
             return $query;
         }
 
-        return $query->where('created_by', $user->id);
+        $roleNames = $user->getRoleNames();
+
+        if ($roleNames->isEmpty()) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereHas(
+            'creator.roles',
+            fn (Builder $roleQuery): Builder => $roleQuery->whereIn('name', $roleNames)
+        );
     }
 
     public static function getRelations(): array

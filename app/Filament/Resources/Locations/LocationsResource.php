@@ -13,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class LocationsResource extends Resource
 {
@@ -32,6 +33,27 @@ class LocationsResource extends Resource
     public static function table(Table $table): Table
     {
         return LocationsTable::configure($table);
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+
+        if (! $user || $user->hasAnyRole(['super_admin', 'admin'])) {
+            return $query;
+        }
+
+        $roleNames = $user->getRoleNames();
+
+        if ($roleNames->isEmpty()) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereHas(
+            'campaign.creator.roles',
+            fn (Builder $roleQuery): Builder => $roleQuery->whereIn('name', $roleNames)
+        );
     }
 
     public static function getRelations(): array

@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Campaigns;
+use App\Filament\Resources\Campaigns\CampaignsResource;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
@@ -13,7 +13,7 @@ class RunningCampaignsStats extends StatsOverviewWidget
     {
         $today = Carbon::today();
 
-        $runningCount = Campaigns::query()
+        $runningCount = CampaignsResource::getEloquentQuery()
             ->whereDate('start_date', '<=', $today)
             ->whereDate('end_date', '>=', $today)
             ->count();

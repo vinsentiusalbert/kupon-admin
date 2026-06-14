@@ -2,14 +2,14 @@
 
 namespace App\Filament\Resources\Outlets\Schemas;
 
+use App\Filament\Resources\Campaigns\CampaignsResource;
 use App\Models\Campaigns;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
-use Illuminate\Support\Str;
 
 class OutletsForm
 {
@@ -20,12 +20,12 @@ class OutletsForm
                 Select::make('campaign_id')
                     ->label('Campaign')
                     ->options(function () {
-                        return Campaigns::query()
+                        return CampaignsResource::getEloquentQuery()
                             ->orderBy('campaign_name')
                             ->get()
                             ->mapWithKeys(function (Campaigns $campaign) {
                                 return [
-                                    $campaign->id => $campaign->campaign_code . ' - ' . $campaign->campaign_name,
+                                    $campaign->id => $campaign->campaign_code.' - '.$campaign->campaign_name,
                                 ];
                             })
                             ->all();

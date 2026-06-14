@@ -24,22 +24,22 @@ class UsersResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        return auth()->user()?->hasAnyRole(['super_admin', 'admin']) ?? false;
     }
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        return auth()->user()?->hasAnyRole(['super_admin', 'admin']) ?? false;
     }
 
     public static function canEdit($record): bool
     {
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        return auth()->user()?->hasAnyRole(['super_admin', 'admin']) ?? false;
     }
 
     public static function canDelete($record): bool
     {
-        return auth()->user()?->hasRole('super_admin') ?? false;
+        return auth()->user()?->hasAnyRole(['super_admin', 'admin']) ?? false;
     }
 
     public static function form(Schema $schema): Schema
