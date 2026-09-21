@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Campaigns;
 use App\Models\Locations;
 use App\Models\Outlets;
+use App\Services\OutletVoucherService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -65,7 +66,7 @@ class MicrositeController extends Controller
         ]);
     }
 
-    public function checkOutlet(Request $request)
+    public function checkOutlet(Request $request, OutletVoucherService $vouchers)
     {
         $data = $request->validate([
             'outlet_code' => ['required', 'string', 'max:20'],
@@ -84,10 +85,19 @@ class MicrositeController extends Controller
             ], 404);
         }
 
+        $voucher = $vouchers->redeem($outlet);
+
+        if (! $voucher) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Voucher untuk outlet ini sudah habis.',
+            ], 409);
+        }
+
         return response()->json([
             'success' => true,
             'outlet_name' => $outlet->outlet_name,
-            'voucher_code' => $outlet->voucher_code,
+            'voucher_code' => $voucher->code,
         ]);
     }
 }

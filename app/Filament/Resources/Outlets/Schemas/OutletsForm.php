@@ -4,12 +4,10 @@ namespace App\Filament\Resources\Outlets\Schemas;
 
 use App\Filament\Resources\Campaigns\CampaignsResource;
 use App\Models\Campaigns;
-use Filament\Actions\Action;
+use App\Services\OutletVoucherService;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
 
 class OutletsForm
 {
@@ -36,23 +34,16 @@ class OutletsForm
                     ->required(),
                 TextInput::make('outlet_code')
                     ->required(),
-                TextInput::make('voucher_code')
+                TextInput::make('voucher_quantity')
+                    ->label('Jumlah voucher')
+                    ->helperText('Masukkan jumlah kode voucher yang akan dibuat otomatis. Setiap kode hanya dapat digunakan sekali.')
+                    ->visibleOn('create')
                     ->required()
                     ->numeric()
                     ->rule('integer')
-                    ->suffixAction(
-                        Action::make('generate_voucher_code')
-                            ->label('Generate')
-                            ->icon(Heroicon::ArrowPath)
-                            ->action(function (Set $set): void {
-                                $set('voucher_code', self::generateVoucherCode());
-                            })
-                    ),
+                    ->minValue(1)
+                    ->maxValue(OutletVoucherService::MAX_VOUCHERS)
+                    ->default(1),
             ]);
-    }
-
-    private static function generateVoucherCode(): string
-    {
-        return (string) random_int(10000, 99999);
     }
 }

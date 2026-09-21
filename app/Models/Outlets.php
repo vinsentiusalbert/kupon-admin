@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Outlets extends Model
 {
@@ -25,5 +26,15 @@ class Outlets extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function vouchers(): HasMany
+    {
+        return $this->hasMany(OutletVoucher::class, 'outlet_id');
+    }
+
+    public function availableVouchers(): HasMany
+    {
+        return $this->vouchers()->whereNull('redeemed_at');
     }
 }

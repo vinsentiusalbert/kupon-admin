@@ -21,15 +21,19 @@ class OutletsTable
                             return $record->campaign_id;
                         }
 
-                        return $record->campaign->campaign_code . ' - ' . $record->campaign->campaign_name;
+                        return $record->campaign->campaign_code.' - '.$record->campaign->campaign_name;
                     })
                     ->searchable(),
                 TextColumn::make('outlet_name')
                     ->searchable(),
                 TextColumn::make('outlet_code')
                     ->searchable(),
-                TextColumn::make('voucher_code')
-                    ->searchable(),
+                TextColumn::make('vouchers_count')
+                    ->label('Total voucher')
+                    ->counts('vouchers'),
+                TextColumn::make('available_vouchers_count')
+                    ->label('Voucher tersisa')
+                    ->counts('availableVouchers'),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

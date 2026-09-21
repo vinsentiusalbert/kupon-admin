@@ -696,21 +696,25 @@
         input.value = input.value.slice(0, -1);
     }
 
+    let redeemInProgress = false;
+
     function submitCode() {
+        if (redeemInProgress) return;
+
         let code = document.getElementById('outletCode').value;
+        const submitButton = document.querySelector('.key-submit');
         const resultBox = document.getElementById('resultBox');
         resultBox.classList.remove('is-error');
         resultBox.style.display = 'none';
 
-        // if (code.length < 4) {
-        //     alert('Kode outlet belum lengkap');
-        //     return;
-        // }
+        redeemInProgress = true;
+        submitButton.disabled = true;
 
         fetch('{{ route('outlet.check') }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
             },
             body: JSON.stringify({
@@ -732,7 +736,11 @@
             resultBox.textContent = err.message;
             resultBox.classList.add('is-error');
             resultBox.style.display = 'block';
-            openNotif('error', 'Coba lagi!', 'Kode outlet tidak valid.', '', '');
+            openNotif('error', 'Coba lagi!', err.message, '', '');
+        })
+        .finally(() => {
+            redeemInProgress = false;
+            submitButton.disabled = false;
         });
     }
 </script>

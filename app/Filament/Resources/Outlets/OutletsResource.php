@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Outlets;
 use App\Filament\Resources\Outlets\Pages\CreateOutlets;
 use App\Filament\Resources\Outlets\Pages\EditOutlets;
 use App\Filament\Resources\Outlets\Pages\ListOutlets;
+use App\Filament\Resources\Outlets\RelationManagers\VouchersRelationManager;
 use App\Filament\Resources\Outlets\Schemas\OutletsForm;
 use App\Filament\Resources\Outlets\Tables\OutletsTable;
 use App\Models\Outlets;
@@ -57,7 +58,7 @@ class OutletsResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            VouchersRelationManager::class,
         ];
     }
 
