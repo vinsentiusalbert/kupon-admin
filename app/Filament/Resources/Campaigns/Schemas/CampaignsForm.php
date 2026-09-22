@@ -33,6 +33,13 @@ class CampaignsForm
                     ),
                 TextInput::make('campaign_title')
                     ->required(),
+                TextInput::make('phone_outlet_code')
+                    ->label('Kode outlet untuk redeem nomor HP')
+                    ->helperText('Isi untuk mengaktifkan redeem nomor HP pada campaign ini. Kode ini ditampilkan setelah nomor HP disimpan. Kosongkan untuk menonaktifkan.')
+                    ->maxLength(20)
+                    ->regex('/^[0-9]+$/')
+                    ->validationMessages(['regex' => 'Kode outlet harus berupa angka.'])
+                    ->dehydrateStateUsing(fn ($state) => filled($state) ? trim($state) : null),
                 FileUpload::make('logo')
                     ->image()
                     ->disk('public')

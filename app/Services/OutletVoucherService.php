@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Campaigns;
 use App\Models\Outlets;
 use App\Models\OutletVoucher;
 use Illuminate\Support\Facades\DB;
@@ -22,10 +23,9 @@ class OutletVoucherService
         $quantity = (int) $data['voucher_quantity'];
         unset($data['voucher_quantity']);
 
-        // Shuffle the five-digit code space to guarantee unique codes within this outlet.
-        $codes = array_slice((new Randomizer(new Secure))->shuffleArray(range(10000, 99999)), 0, $quantity);
-
-        return DB::transaction(function () use ($data, $codes): Outlets {
+        return DB::transaction(function () use ($data, $quantity): Outlets {
+            Campaigns::query()->lockForUpdate()->findOrFail($data['campaign_id']);
+            $codes = $this->generateCodes($data['campaign_id'], $quantity);
             // Retained for compatibility with the original schema; redemption uses vouchers only.
             $data['voucher_code'] = (string) $codes[0];
             $outlet = Outlets::query()->create($data);
@@ -38,26 +38,30 @@ class OutletVoucherService
     public function addVouchers(Outlets $outlet, array $data): void
     {
         DB::transaction(function () use ($outlet, $data): void {
+            Campaigns::query()->lockForUpdate()->findOrFail($outlet->campaign_id);
             $lockedOutlet = Outlets::query()->lockForUpdate()->findOrFail($outlet->id);
-            // Include redeemed codes so newly generated vouchers never reuse an existing code.
-            $existingCodes = $lockedOutlet->vouchers()->pluck('code')->all();
-            $availableCodes = array_values(array_diff(range(10000, 99999), $existingCodes));
-            $remaining = count($availableCodes);
-
-            Validator::make($data, [
-                'voucher_quantity' => ['required', 'integer', 'min:1', 'max:'.$remaining],
-            ], [
-                'voucher_quantity.max' => "Maksimal {$remaining} kode voucher baru dapat ditambahkan ke outlet ini.",
-            ])->validate();
-
-            $codes = array_slice(
-                (new Randomizer(new Secure))->shuffleArray($availableCodes),
-                0,
-                (int) $data['voucher_quantity'],
-            );
+            $codes = $this->generateCodes($lockedOutlet->campaign_id, $data['voucher_quantity'] ?? null);
 
             $this->insertVouchers($lockedOutlet, $codes);
         }, attempts: 5);
+    }
+
+    private function generateCodes(int|string $campaignId, mixed $quantity): array
+    {
+        // Include used vouchers and every outlet in the campaign to keep lookup unambiguous.
+        $existingCodes = OutletVoucher::query()
+            ->whereHas('outlet', fn ($query) => $query->where('campaign_id', $campaignId))
+            ->pluck('code')->all();
+        $availableCodes = array_values(array_diff(range(10000, 99999), $existingCodes));
+        $remaining = count($availableCodes);
+
+        Validator::make(['voucher_quantity' => $quantity], [
+            'voucher_quantity' => ['required', 'integer', 'min:1', 'max:'.$remaining],
+        ], [
+            'voucher_quantity.max' => "Maksimal {$remaining} kode voucher baru dapat ditambahkan pada campaign ini.",
+        ])->validate();
+
+        return array_slice((new Randomizer(new Secure))->shuffleArray($availableCodes), 0, (int) $quantity);
     }
 
     public function resetRedemption(Outlets $outlet, OutletVoucher $voucher): void
@@ -83,12 +87,12 @@ class OutletVoucherService
         }
     }
 
-    public function redeem(Outlets $outlet): ?OutletVoucher
+    public function redeem(Outlets $outlet, string $code): ?OutletVoucher
     {
-        return DB::transaction(function () use ($outlet): ?OutletVoucher {
+        return DB::transaction(function () use ($outlet, $code): ?OutletVoucher {
             // Serialize redemptions for the same outlet so concurrent requests cannot reuse a code.
             $lockedOutlet = Outlets::query()->lockForUpdate()->findOrFail($outlet->id);
-            $voucher = $lockedOutlet->availableVouchers()->inRandomOrder()->lockForUpdate()->first();
+            $voucher = $lockedOutlet->availableVouchers()->where('code', $code)->lockForUpdate()->first();
 
             if (! $voucher) {
                 return null;

@@ -18,6 +18,7 @@ class Campaigns extends Model
         'start_date',
         'end_date',
         'created_by',
+        'phone_outlet_code',
     ];
 
     protected $casts = [

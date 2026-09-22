@@ -80,72 +80,91 @@ class OutletVouchersTest extends TestCase
         $this->assertSame([3, 7], Outlets::query()->withCount('vouchers')->orderBy('id')->pluck('vouchers_count')->all());
     }
 
-    public function test_redeem_returns_each_voucher_once_in_random_order_and_reports_when_empty(): void
+    public function test_redeem_accepts_generated_voucher_and_returns_outlet_code_once(): void
     {
-        $outlet = app(OutletVoucherService::class)->createOutlet($this->outletData(60));
-        $originalCodes = $outlet->vouchers()->orderBy('id')->pluck('code')->all();
-        $redeemedCodes = [];
-
-        for ($i = 0; $i < 60; $i++) {
-            $response = $this->postJson(route('outlet.check'), [
-                'outlet_code' => $outlet->outlet_code,
-                'campaign_id' => (string) $outlet->campaign_id,
-            ])->assertOk()->assertJson([
+        $outlet = app(OutletVoucherService::class)->createOutlet($this->outletData(3));
+        $this->get(Campaigns::findOrFail($outlet->campaign_id)->public_url)
+            ->assertOk()->assertSee('Masukkan Kode Voucher')->assertSee('Kode outlet');
+        foreach ($outlet->vouchers()->get() as $voucher) {
+            $payload = ['voucher_code' => $voucher->code, 'campaign_id' => (string) $outlet->campaign_id];
+            $this->postJson(route('outlet.check'), $payload)->assertOk()->assertExactJson([
                 'success' => true,
                 'outlet_name' => $outlet->outlet_name,
+                'outlet_code' => $outlet->outlet_code,
             ]);
-
-            $code = $response->json('voucher_code');
-            $this->assertNotContains($code, $redeemedCodes);
-            $this->assertNotNull($outlet->vouchers()->where('code', $code)->firstOrFail()->redeemed_at);
-            $redeemedCodes[] = $code;
+            $this->assertNotNull($voucher->fresh()->redeemed_at);
+            $this->postJson(route('outlet.check'), $payload)->assertStatus(409)
+                ->assertJson(['message' => 'Kode voucher sudah digunakan.'])
+                ->assertJsonMissingPath('outlet_code');
         }
-
-        $this->assertEqualsCanonicalizing($originalCodes, $redeemedCodes);
-        $this->assertNotSame($originalCodes, $redeemedCodes);
         $this->assertSame(0, $outlet->availableVouchers()->count());
-
-        $this->postJson(route('outlet.check'), [
-            'outlet_code' => $outlet->outlet_code,
-            'campaign_id' => (string) $outlet->campaign_id,
-        ])->assertStatus(409)->assertJson([
-            'success' => false,
-            'message' => 'Voucher untuk outlet ini sudah habis.',
-        ])->assertJsonMissingPath('voucher_code');
     }
 
-    public function test_redeem_only_uses_vouchers_from_the_matching_outlet_and_campaign(): void
+    public function test_redeem_is_scoped_to_campaign_and_rejects_outlet_codes(): void
     {
         $service = app(OutletVoucherService::class);
         $first = $service->createOutlet($this->outletData(2));
         $second = $service->createOutlet($this->outletData(2));
-        $third = $service->createOutlet([
-            'campaign_id' => $first->campaign_id,
-            'outlet_name' => 'Other outlet',
-            'outlet_code' => '654321',
-            'voucher_quantity' => 2,
-        ]);
-
+        $voucher = $first->vouchers()->firstOrFail();
+        if (! $second->vouchers()->where('code', $voucher->code)->exists()) {
+            $second->vouchers()->firstOrFail()->update(['code' => $voucher->code]);
+        }
         $this->postJson(route('outlet.check'), [
-            'outlet_code' => $first->outlet_code,
-            'campaign_id' => (string) $first->campaign_id,
-        ])->assertOk();
-
+            'voucher_code' => $voucher->code, 'campaign_id' => (string) $first->campaign_id,
+        ])->assertOk()->assertJson(['outlet_code' => $first->outlet_code]);
+        $this->postJson(route('outlet.check'), [
+            'voucher_code' => $voucher->code, 'campaign_id' => 'missing-campaign',
+        ])->assertNotFound();
+        $this->postJson(route('outlet.check'), [
+            'outlet_code' => $first->outlet_code, 'campaign_id' => (string) $first->campaign_id,
+        ])->assertUnprocessable()->assertJsonValidationErrors('voucher_code');
+        $this->postJson(route('outlet.check'), [
+            'voucher_code' => '00000', 'campaign_id' => (string) $first->campaign_id,
+        ])->assertNotFound();
         $this->assertSame(1, $first->availableVouchers()->count());
         $this->assertSame(2, $second->availableVouchers()->count());
-        $this->assertSame(2, $third->availableVouchers()->count());
+    }
 
+    public function test_new_voucher_codes_are_unique_across_outlets_in_a_campaign(): void
+    {
+        $service = app(OutletVoucherService::class);
+        $data = $this->outletData(1000);
+        $first = $service->createOutlet($data);
+        $second = $service->createOutlet([...$data, 'outlet_code' => '654321']);
+        $service->addVouchers($second, ['voucher_quantity' => 1000]);
+        $this->assertEmpty(array_intersect($first->vouchers()->pluck('code')->all(), $second->vouchers()->pluck('code')->all()));
         $this->postJson(route('outlet.check'), [
-            'outlet_code' => 'unknown',
-            'campaign_id' => (string) $first->campaign_id,
-        ])->assertNotFound()->assertJson(['success' => false]);
+            'voucher_code' => $second->vouchers()->firstOrFail()->code,
+            'campaign_id' => (string) $second->campaign_id,
+        ])->assertOk()->assertJson(['outlet_code' => '654321']);
+        $this->assertSame(1000, $first->availableVouchers()->count());
+        $this->assertSame(1999, $second->availableVouchers()->count());
+    }
 
+    public function test_invalid_voucher_input_does_not_consume_vouchers(): void
+    {
+        $outlet = app(OutletVoucherService::class)->createOutlet($this->outletData(1));
+        foreach (['', '1234', '123456', 'abcde', ['12345']] as $code) {
+            $this->postJson(route('outlet.check'), [
+                'voucher_code' => $code, 'campaign_id' => (string) $outlet->campaign_id,
+            ])->assertUnprocessable()->assertJsonValidationErrors('voucher_code');
+        }
+        $this->assertSame(1, $outlet->availableVouchers()->count());
+    }
+
+    public function test_legacy_duplicate_codes_are_rejected_without_consuming_either_voucher(): void
+    {
+        $service = app(OutletVoucherService::class);
+        $data = $this->outletData(1);
+        $first = $service->createOutlet($data);
+        $second = $service->createOutlet([...$data, 'outlet_code' => '654321']);
+        $code = $first->vouchers()->sole()->code;
+        $second->vouchers()->update(['code' => $code]);
         $this->postJson(route('outlet.check'), [
-            'outlet_code' => $first->outlet_code,
-            'campaign_id' => 'missing-campaign',
-        ])->assertNotFound();
-
+            'voucher_code' => $code, 'campaign_id' => (string) $first->campaign_id,
+        ])->assertStatus(409)->assertJsonMissingPath('outlet_code');
         $this->assertSame(1, $first->availableVouchers()->count());
+        $this->assertSame(1, $second->availableVouchers()->count());
     }
 
     public function test_edit_preserves_voucher_codes_and_redemption_status_and_displays_counts(): void
@@ -153,7 +172,7 @@ class OutletVouchersTest extends TestCase
         $this->signInAdmin();
         $service = app(OutletVoucherService::class);
         $outlet = $service->createOutlet($this->outletData(3));
-        $service->redeem($outlet);
+        $service->redeem($outlet, $outlet->availableVouchers()->firstOrFail()->code);
         $vouchers = $outlet->vouchers()->get()->toArray();
 
         Livewire::test(EditOutlets::class, ['record' => $outlet->id])
@@ -198,7 +217,7 @@ class OutletVouchersTest extends TestCase
         $service = app(OutletVoucherService::class);
         $outlet = $service->createOutlet($this->outletData(60));
         $service->createOutlet($this->outletData(3));
-        $redeemed = $service->redeem($outlet);
+        $redeemed = $service->redeem($outlet, $outlet->availableVouchers()->firstOrFail()->code);
 
         $component = Livewire::test(VouchersRelationManager::class, [
             'ownerRecord' => $outlet,
@@ -238,8 +257,8 @@ class OutletVouchersTest extends TestCase
         $this->assertSame('12345', $first->vouchers()->sole()->code);
         $this->assertSame('12345', $second->vouchers()->sole()->code);
         $service = app(OutletVoucherService::class);
-        $this->assertSame('12345', $service->redeem($first)->code);
-        $this->assertNull($service->redeem($first));
+        $this->assertSame('12345', $service->redeem($first, '12345')->code);
+        $this->assertNull($service->redeem($first, '12345'));
         $this->assertSame(1, $second->availableVouchers()->count());
     }
 
@@ -249,7 +268,7 @@ class OutletVouchersTest extends TestCase
         $service = app(OutletVoucherService::class);
         $outlet = $service->createOutlet($this->outletData(60));
         $otherOutlet = $service->createOutlet($this->outletData(2));
-        $service->redeem($outlet);
+        $service->redeem($outlet, $outlet->availableVouchers()->firstOrFail()->code);
         $existing = $outlet->vouchers()->orderBy('id')->get();
 
         Livewire::test(VouchersRelationManager::class, [
@@ -302,10 +321,10 @@ class OutletVouchersTest extends TestCase
         $this->signInAdmin();
         $service = app(OutletVoucherService::class);
         $outlet = $service->createOutlet($this->outletData(2));
-        $first = $service->redeem($outlet);
-        $second = $service->redeem($outlet);
+        $first = $service->redeem($outlet, $outlet->availableVouchers()->firstOrFail()->code);
+        $second = $service->redeem($outlet, $outlet->availableVouchers()->firstOrFail()->code);
         $otherOutlet = $service->createOutlet($this->outletData(1));
-        $otherVoucher = $service->redeem($otherOutlet);
+        $otherVoucher = $service->redeem($otherOutlet, $otherOutlet->availableVouchers()->value('code'));
 
         Livewire::test(VouchersRelationManager::class, [
             'ownerRecord' => $outlet,
@@ -321,8 +340,8 @@ class OutletVouchersTest extends TestCase
         $this->assertTrue($second->redeemed_at->equalTo($second->fresh()->redeemed_at));
         $this->assertTrue($otherVoucher->redeemed_at->equalTo($otherVoucher->fresh()->redeemed_at));
         $this->assertSame(1, $outlet->availableVouchers()->count());
-        $this->assertSame($first->code, $service->redeem($outlet)->code);
-        $this->assertNull($service->redeem($outlet));
+        $this->assertSame($first->code, $service->redeem($outlet, $first->code)->code);
+        $this->assertNull($service->redeem($outlet, $first->code));
     }
 
     public function test_voucher_mutation_actions_are_unavailable_for_an_outlet_outside_the_users_role_group(): void
@@ -330,7 +349,7 @@ class OutletVouchersTest extends TestCase
         $this->signInAdmin();
         $service = app(OutletVoucherService::class);
         $outlet = $service->createOutlet($this->outletData(1));
-        $voucher = $service->redeem($outlet);
+        $voucher = $service->redeem($outlet, $outlet->availableVouchers()->firstOrFail()->code);
         $otherUser = User::factory()->create();
         $otherUser->assignRole(Role::findOrCreate('sales'));
         $this->actingAs($otherUser);

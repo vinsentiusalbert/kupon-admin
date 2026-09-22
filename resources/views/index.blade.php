@@ -355,7 +355,7 @@
     box-shadow: 0 0 14px rgba(245, 54, 54, 0.35);
 }
 
-        #outletCode {
+        #voucherCode {
             width: 100%;
             max-width: 280px;
             box-sizing: border-box;
@@ -369,6 +369,33 @@
         }
 
 
+        .redeem-choice {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            margin-top: 12px;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            background: #fafafa;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .phone-input {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid #ccc;
+            border-radius: 12px;
+            padding: 12px;
+            margin: 16px 0;
+            text-align: left;
+        }
+        .phone-input input {
+            width: 100%;
+            min-width: 0;
+            border: none;
+            font-size: 18px;
+        }
         .keypad {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -542,17 +569,50 @@
     </div>
 
 
-    <!-- MODAL INPUT KODE OUTLET -->
+    <div class="modal" id="redeemModal" role="dialog" aria-modal="true" aria-labelledby="redeemTitle">
+        <div class="modal-box">
+            <h3 id="redeemTitle">Pilih Cara Redeem</h3>
+            @if (filled($campaign->phone_outlet_code))
+                <button type="button" class="redeem-choice" onclick="openPhoneModal()">Gunakan Nomor HP</button>
+            @else
+                <p class="subtitle">Redeem nomor HP belum tersedia untuk campaign ini.</p>
+            @endif
+            <button type="button" class="redeem-choice" onclick="openVoucherModal()">Gunakan Kode Voucher</button>
+            <div class="back-btn" onclick="closeRedeemModal()">&lt; Back</div>
+        </div>
+    </div>
+
+    <div class="modal" id="phoneModal" role="dialog" aria-modal="true" aria-labelledby="phoneTitle">
+        <div class="modal-box">
+            <h3 id="phoneTitle">Masukkan Nomor HP</h3>
+            <p class="subtitle">Nomor HP dan waktu redeem akan disimpan untuk pencatatan penukaran.</p>
+            <form onsubmit="submitPhone(event)">
+                <label for="phoneNumber">Nomor HP</label>
+                <div class="phone-input">
+                    <strong>+62</strong>
+                    <input type="tel" id="phoneNumber" inputmode="numeric" autocomplete="tel-national"
+                           placeholder="81234567890" pattern="8[0-9]{8,11}" minlength="9" maxlength="12"
+                           aria-describedby="phoneHelp" required />
+                </div>
+                <p id="phoneHelp" class="subtitle">Isi mulai angka 8, tanpa 0 atau +62.</p>
+                <button type="submit" class="btn-red" id="phoneSubmit">REDEEM</button>
+            </form>
+            <div id="phoneResult" class="result-box" role="alert"></div>
+            <div class="back-btn" onclick="backFromPhone()">&lt; Back</div>
+        </div>
+    </div>
+
+    <!-- MODAL INPUT KODE VOUCHER -->
     <div class="modal" id="outletModal">
         <div class="modal-box">
             <div class="modal-logo">
                 <img src="{{ $logoUrl }}" alt="{{ $campaign?->campaign_name ?? '' }}">
             </div>
 
-            <h3>Masukkan Code Outlet</h3>
-            <p class="subtitle">Silahkan minta kode outlet dari kasir untuk validasi</p>
+            <h3>Masukkan Kode Voucher</h3>
+            <p class="subtitle">Silakan masukkan kode voucher yang diberikan oleh admin atau kasir</p>
 
-            <input type="password" id="outletCode" maxlength="6" readonly />
+            <input type="password" id="voucherCode" maxlength="5" readonly />
 
             <div class="keypad">
                 <button onclick="pressKey(1)">1</button>
@@ -572,7 +632,7 @@
 
             <div id="resultBox" class="result-box"></div>
 
-            <div class="back-btn" onclick="closeModal()">< Back</div>
+            <div class="back-btn" onclick="closeModal(); openModal()">< Back</div>
         </div>
     </div>
 
@@ -589,15 +649,15 @@
             <div id="notifTitle" class="notif-title">Berhasil</div>
             <p id="notifInfo" class="notif-info">Voucher berhasil ditukarkan</p>
             <div class="notif-kv">
-                <strong>Voucher</strong>
-                <span id="notifVoucher">-</span>
+                <strong>Kode outlet</strong>
+                <span id="notifOutletCode">-</span>
             </div>
-            <div class="notif-kv" style="margin-top:8px;">
+            <div class="notif-kv" id="notifOutletRow" style="margin-top:8px;">
                 <strong>Outlet</strong>
                 <span id="notifOutlet">-</span>
             </div>
             <div id="notifHint" class="notif-hint" style="display:none;">
-                Redeem Voucher ini dengan akses ke <strong>*200*<span id="notifVoucherInline">-</span>#</strong>
+                Gunakan kode outlet ini dengan akses ke <strong>*200*<span id="notifOutletCodeInline">-</span>#</strong>
             </div>
             <button class="notif-btn" onclick="closeNotif()">OK</button>
         </div>
@@ -606,13 +666,82 @@
 <script>
     function openModal() {
         document.body.classList.add('modal-open');
+        document.getElementById('redeemModal').classList.add('is-open');
+    }
+
+    function closeRedeemModal() {
+        document.body.classList.remove('modal-open');
+        document.getElementById('redeemModal').classList.remove('is-open');
+    }
+
+    function openVoucherModal() {
+        closeRedeemModal();
+        document.body.classList.add('modal-open');
         document.getElementById('outletModal').classList.add('is-open');
+    }
+
+    let phoneRedeemInProgress = false;
+
+    function openPhoneModal() {
+        closeRedeemModal();
+        document.body.classList.add('modal-open');
+        document.getElementById('phoneModal').classList.add('is-open');
+        document.getElementById('phoneNumber').focus();
+    }
+
+    function closePhoneModal() {
+        document.body.classList.remove('modal-open');
+        document.getElementById('phoneModal').classList.remove('is-open');
+        document.getElementById('phoneNumber').value = '';
+        document.getElementById('phoneResult').style.display = 'none';
+    }
+
+    function backFromPhone() {
+        if (phoneRedeemInProgress) return;
+        closePhoneModal();
+        openModal();
+    }
+
+    async function submitPhone(event) {
+        event.preventDefault();
+        if (phoneRedeemInProgress) return;
+        const input = document.getElementById('phoneNumber');
+        if (!input.reportValidity()) return;
+        const button = document.getElementById('phoneSubmit');
+        const result = document.getElementById('phoneResult');
+        phoneRedeemInProgress = true;
+        button.disabled = true;
+        result.style.display = 'none';
+        try {
+            const response = await fetch('{{ route('phone.redeem') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                },
+                body: JSON.stringify({phone_number: '+62' + input.value, campaign_id: @json($campaign->id)}),
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || 'Redeem gagal. Silakan coba lagi.');
+            }
+            closePhoneModal();
+            openNotif('success', 'Berhasil', 'Nomor HP telah tercatat. Gunakan kode outlet berikut.', data.outlet_code, '');
+        } catch (error) {
+            result.textContent = error.message;
+            result.classList.add('is-error');
+            result.style.display = 'block';
+        } finally {
+            phoneRedeemInProgress = false;
+            button.disabled = false;
+        }
     }
 
     function closeModal() {
         document.body.classList.remove('modal-open');
         document.getElementById('outletModal').classList.remove('is-open');
-        document.getElementById('outletCode').value = '';
+        document.getElementById('voucherCode').value = '';
         const resultBox = document.getElementById('resultBox');
         if (resultBox) {
             resultBox.style.display = 'none';
@@ -651,15 +780,15 @@
         body.style.maxHeight = body.scrollHeight + 'px';
     }
 
-    function openNotif(type, title, text, voucher, outlet) {
+    function openNotif(type, title, text, outletCode, outlet) {
         const modal = document.getElementById('notifModal');
         const check = document.getElementById('notifCheck');
         const t = document.getElementById('notifTitle');
         const msg = document.getElementById('notifInfo');
-        const v = document.getElementById('notifVoucher');
+        const v = document.getElementById('notifOutletCode');
         const o = document.getElementById('notifOutlet');
         const hint = document.getElementById('notifHint');
-        const vInline = document.getElementById('notifVoucherInline');
+        const vInline = document.getElementById('notifOutletCodeInline');
 
         if (type === 'error') {
             check.classList.remove('success');
@@ -673,9 +802,10 @@
 
         t.textContent = title;
         msg.textContent = text;
-        v.textContent = voucher || '-';
+        v.textContent = outletCode || '-';
         o.textContent = outlet || '-';
-        vInline.textContent = voucher || '-';
+        document.getElementById('notifOutletRow').style.display = outlet ? '' : 'none';
+        vInline.textContent = outletCode || '-';
         hint.style.display = type === 'error' ? 'none' : 'block';
         modal.classList.add('is-open');
     }
@@ -685,14 +815,14 @@
     }
 
     function pressKey(num) {
-        let input = document.getElementById('outletCode');
-        if (input.value.length < 6) {
+        let input = document.getElementById('voucherCode');
+        if (input.value.length < input.maxLength) {
             input.value += num;
         }
     }
 
     function clearKey() {
-        let input = document.getElementById('outletCode');
+        let input = document.getElementById('voucherCode');
         input.value = input.value.slice(0, -1);
     }
 
@@ -701,7 +831,7 @@
     function submitCode() {
         if (redeemInProgress) return;
 
-        let code = document.getElementById('outletCode').value;
+        let code = document.getElementById('voucherCode').value;
         const submitButton = document.querySelector('.key-submit');
         const resultBox = document.getElementById('resultBox');
         resultBox.classList.remove('is-error');
@@ -718,19 +848,19 @@
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
             },
             body: JSON.stringify({
-                outlet_code: code,
+                voucher_code: code,
                 campaign_id: '{{ $campaign?->id }}',
             }),
         })
         .then(async (res) => {
             const data = await res.json();
             if (!res.ok || !data.success) {
-                throw new Error(data.message || 'Kode outlet tidak ditemukan.');
+                throw new Error(data.message || 'Kode voucher tidak ditemukan.');
             }
-            resultBox.textContent = 'Sukses! Outlet: ' + data.outlet_name + ' | Voucher: ' + data.voucher_code;
+            resultBox.textContent = 'Sukses! Outlet: ' + data.outlet_name + ' | Kode outlet: ' + data.outlet_code;
             resultBox.classList.remove('is-error');
             resultBox.style.display = 'block';
-            openNotif('success', 'Berhasil', 'Voucher berhasil ditukarkan', data.voucher_code, data.outlet_name);
+            openNotif('success', 'Berhasil', 'Voucher berhasil ditukarkan', data.outlet_code, data.outlet_name);
         })
         .catch((err) => {
             resultBox.textContent = err.message;
