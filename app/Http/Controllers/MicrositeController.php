@@ -89,7 +89,17 @@ class MicrositeController extends Controller
                 return response()->json(['success' => false, 'message' => 'Redeem nomor HP belum tersedia untuk campaign ini.'], 409);
             }
 
-            // Keep the original code and timestamp when the same request is submitted again.
+            // Serialize redemptions across campaigns that share the same outlet code.
+            Campaigns::query()->where('phone_outlet_code', $campaign->phone_outlet_code)
+                ->orderBy('id')->lockForUpdate()->get();
+
+            if (PhoneRedemption::query()
+                ->where('phone_number', $data['phone_number'])
+                ->where('outlet_code', $campaign->phone_outlet_code)
+                ->exists()) {
+                return response()->json(['success' => false, 'message' => 'Nomor ini sudah redeem.'], 409);
+            }
+
             $redemption = PhoneRedemption::query()->firstOrCreate([
                 'campaign_id' => $campaign->id,
                 'phone_number' => $data['phone_number'],
@@ -97,6 +107,10 @@ class MicrositeController extends Controller
                 'outlet_code' => $campaign->phone_outlet_code,
                 'redeemed_at' => now(),
             ]);
+
+            if (! $redemption->wasRecentlyCreated) {
+                return response()->json(['success' => false, 'message' => 'Nomor ini sudah redeem.'], 409);
+            }
 
             return response()->json([
                 'success' => true,

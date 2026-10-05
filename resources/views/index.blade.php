@@ -585,7 +585,7 @@
     <div class="modal" id="phoneModal" role="dialog" aria-modal="true" aria-labelledby="phoneTitle">
         <div class="modal-box">
             <h3 id="phoneTitle">Masukkan Nomor HP</h3>
-            <p class="subtitle">Nomor HP dan waktu redeem akan disimpan untuk pencatatan penukaran.</p>
+            <p class="subtitle">Nomor HP hanya dapat redeem satu kali untuk kode outlet yang sama.</p>
             <form onsubmit="submitPhone(event)">
                 <label for="phoneNumber">Nomor HP</label>
                 <div class="phone-input">

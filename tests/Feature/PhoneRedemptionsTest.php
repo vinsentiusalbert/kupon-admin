@@ -38,15 +38,59 @@ class PhoneRedemptionsTest extends TestCase
         $this->assertDatabaseCount('outlet_vouchers', 0);
     }
 
-    public function test_repeated_submission_preserves_original_code_and_time(): void
+    public function test_repeated_submission_is_rejected_and_preserves_original_code_and_time(): void
     {
         $campaign = $this->campaign();
         $payload = ['phone_number' => '+6281234567890', 'campaign_id' => $campaign->id];
         $response = $this->postJson(route('phone.redeem'), $payload)->assertOk()->json();
-        $campaign->update(['phone_outlet_code' => '112233']);
         $this->travel(1)->hours();
-        $this->postJson(route('phone.redeem'), $payload)->assertOk()->assertExactJson($response);
+        $this->postJson(route('phone.redeem'), $payload)->assertStatus(409)
+            ->assertExactJson(['success' => false, 'message' => 'Nomor ini sudah redeem.']);
+        $record = PhoneRedemption::query()->sole();
+        $this->assertSame($response['outlet_code'], $record->outlet_code);
+        $this->assertSame($response['redeemed_at'], $record->redeemed_at->toIso8601String());
         $this->assertDatabaseCount('phone_redemptions', 1);
+    }
+
+    public function test_same_phone_cannot_redeem_in_another_campaign_with_the_same_outlet_code(): void
+    {
+        $firstCampaign = $this->campaign();
+        $secondCampaign = $this->campaign();
+        $this->postJson(route('phone.redeem'), [
+            'phone_number' => '+6281234567890', 'campaign_id' => $firstCampaign->id,
+        ])->assertOk();
+
+        $this->postJson(route('phone.redeem'), [
+            'phone_number' => '+6281234567890', 'campaign_id' => $secondCampaign->id,
+            'outlet_code' => '001122',
+        ])->assertStatus(409)
+            ->assertExactJson(['success' => false, 'message' => 'Nomor ini sudah redeem.']);
+        $this->assertDatabaseCount('phone_redemptions', 1);
+    }
+
+    public function test_changing_campaign_outlet_code_does_not_allow_repeated_submission(): void
+    {
+        $campaign = $this->campaign();
+        $record = $this->record($campaign, '+6281234567890');
+        $campaign->update(['phone_outlet_code' => '001122']);
+
+        $this->postJson(route('phone.redeem'), [
+            'phone_number' => $record->phone_number, 'campaign_id' => $campaign->id,
+        ])->assertStatus(409)
+            ->assertExactJson(['success' => false, 'message' => 'Nomor ini sudah redeem.']);
+        $this->assertSame('998877', $record->fresh()->outlet_code);
+        $this->assertDatabaseCount('phone_redemptions', 1);
+    }
+
+    public function test_different_phones_can_redeem_with_the_same_outlet_code(): void
+    {
+        $campaign = $this->campaign();
+        foreach (['+6281234567890', '+6289876543210'] as $phone) {
+            $this->postJson(route('phone.redeem'), [
+                'phone_number' => $phone, 'campaign_id' => $campaign->id,
+            ])->assertOk()->assertJson(['success' => true, 'outlet_code' => '998877']);
+        }
+        $this->assertDatabaseCount('phone_redemptions', 2);
     }
 
     public function test_same_phone_can_redeem_in_different_campaigns_using_each_campaigns_code(): void
