@@ -5,12 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Campaigns;
 use App\Models\Locations;
 use App\Models\OutletVoucher;
-use App\Models\PhoneRedemption;
 use App\Services\OutletVoucherService;
+use App\Services\PhoneRedemptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class MicrositeController extends Controller
 {
@@ -68,7 +68,7 @@ class MicrositeController extends Controller
         ]);
     }
 
-    public function redeemPhone(Request $request)
+    public function redeemPhone(Request $request, PhoneRedemptionService $redemptions)
     {
         $data = $request->validate([
             'phone_number' => ['required', 'string', 'regex:/^\+628[0-9]{8,11}$/'],
@@ -78,46 +78,23 @@ class MicrositeController extends Controller
             'phone_number.regex' => 'Gunakan nomor HP dengan awalan +628, contoh +6281234567890.',
         ]);
 
-        return DB::transaction(function () use ($data) {
-            $campaign = Campaigns::query()->lockForUpdate()->find($data['campaign_id']);
+        $campaign = Campaigns::query()->find($data['campaign_id']);
 
-            if (! $campaign) {
-                return response()->json(['success' => false, 'message' => 'Campaign tidak ditemukan.'], 404);
-            }
+        if (! $campaign) {
+            return response()->json(['success' => false, 'message' => 'Campaign tidak ditemukan.'], 404);
+        }
 
-            if (blank($campaign->phone_outlet_code)) {
-                return response()->json(['success' => false, 'message' => 'Redeem nomor HP belum tersedia untuk campaign ini.'], 409);
-            }
+        try {
+            $redemption = $redemptions->redeem($campaign, $data['phone_number']);
+        } catch (ValidationException $exception) {
+            return response()->json(['success' => false, 'message' => $exception->validator->errors()->first()], 409);
+        }
 
-            // Serialize redemptions across campaigns that share the same outlet code.
-            Campaigns::query()->where('phone_outlet_code', $campaign->phone_outlet_code)
-                ->orderBy('id')->lockForUpdate()->get();
-
-            if (PhoneRedemption::query()
-                ->where('phone_number', $data['phone_number'])
-                ->where('outlet_code', $campaign->phone_outlet_code)
-                ->exists()) {
-                return response()->json(['success' => false, 'message' => 'Nomor ini sudah redeem.'], 409);
-            }
-
-            $redemption = PhoneRedemption::query()->firstOrCreate([
-                'campaign_id' => $campaign->id,
-                'phone_number' => $data['phone_number'],
-            ], [
-                'outlet_code' => $campaign->phone_outlet_code,
-                'redeemed_at' => now(),
-            ]);
-
-            if (! $redemption->wasRecentlyCreated) {
-                return response()->json(['success' => false, 'message' => 'Nomor ini sudah redeem.'], 409);
-            }
-
-            return response()->json([
-                'success' => true,
-                'outlet_code' => $redemption->outlet_code,
-                'redeemed_at' => $redemption->redeemed_at->toIso8601String(),
-            ]);
-        }, attempts: 5);
+        return response()->json([
+            'success' => true,
+            'outlet_code' => $redemption->outlet_code,
+            'redeemed_at' => $redemption->redeemed_at->toIso8601String(),
+        ]);
     }
 
     public function checkOutlet(Request $request, OutletVoucherService $vouchers)

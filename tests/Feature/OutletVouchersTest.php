@@ -84,7 +84,8 @@ class OutletVouchersTest extends TestCase
     {
         $outlet = app(OutletVoucherService::class)->createOutlet($this->outletData(3));
         $this->get(Campaigns::findOrFail($outlet->campaign_id)->public_url)
-            ->assertOk()->assertSee('Masukkan Kode Voucher')->assertSee('Kode outlet');
+            ->assertOk()->assertSee('Lokasi Penukaran')
+            ->assertDontSee('TUKAR VOUCHER')->assertDontSee('Masukkan Kode Voucher');
         foreach ($outlet->vouchers()->get() as $voucher) {
             $payload = ['voucher_code' => $voucher->code, 'campaign_id' => (string) $outlet->campaign_id];
             $this->postJson(route('outlet.check'), $payload)->assertOk()->assertExactJson([

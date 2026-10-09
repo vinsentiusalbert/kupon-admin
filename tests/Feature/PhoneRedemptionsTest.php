@@ -23,8 +23,9 @@ class PhoneRedemptionsTest extends TestCase
         $this->travelTo(now()->startOfSecond());
         $campaign = $this->campaign();
         $this->get($campaign->public_url)->assertOk()
-            ->assertSee('Gunakan Nomor HP')->assertSee('Gunakan Kode Voucher')
-            ->assertSee('+62')->assertDontSee('998877');
+            ->assertSee('Lokasi Penukaran')->assertDontSee('TUKAR VOUCHER')
+            ->assertDontSee('Gunakan Nomor HP')->assertDontSee('Masukkan Nomor HP')
+            ->assertDontSee('Gunakan Kode Voucher')->assertDontSee('998877');
 
         $this->postJson(route('phone.redeem'), [
             'phone_number' => '+6281234567890', 'campaign_id' => $campaign->id,
@@ -114,7 +115,8 @@ class PhoneRedemptionsTest extends TestCase
         }
 
         $campaign->update(['phone_outlet_code' => null]);
-        $this->get($campaign->public_url)->assertOk()->assertDontSee('Gunakan Nomor HP')->assertSee('Gunakan Kode Voucher');
+        $this->get($campaign->public_url)->assertOk()
+            ->assertDontSee('TUKAR VOUCHER')->assertDontSee('Gunakan Nomor HP')->assertDontSee('Gunakan Kode Voucher');
         $this->postJson(route('phone.redeem'), [
             'phone_number' => '+6281234567890', 'campaign_id' => $campaign->id,
         ])->assertStatus(409)->assertJsonMissingPath('outlet_code');
@@ -153,7 +155,7 @@ class PhoneRedemptionsTest extends TestCase
 
         Livewire::test(ListPhoneRedemptions::class)->filterTable('campaign_id', $second->campaign_id)
             ->assertCanSeeTableRecords([$second])->assertCanNotSeeTableRecords([$first]);
-        $this->assertFalse(PhoneRedemptionResource::canCreate());
+        $this->assertTrue(PhoneRedemptionResource::canCreate());
         $this->assertFalse(PhoneRedemptionResource::canEdit($first));
         $this->assertFalse(PhoneRedemptionResource::canDelete($first));
     }
@@ -169,9 +171,87 @@ class PhoneRedemptionsTest extends TestCase
         Livewire::test(ListPhoneRedemptions::class)->assertCanSeeTableRecords([$first])->assertCanNotSeeTableRecords([$second]);
         $this->actingAs(User::factory()->create());
         $this->assertFalse(PhoneRedemptionResource::canViewAny());
+        $this->assertFalse(PhoneRedemptionResource::canCreate());
         $this->get(PhoneRedemptionResource::getUrl('index'))->assertForbidden();
         auth()->logout();
         $this->get(PhoneRedemptionResource::getUrl('index'))->assertRedirect();
+    }
+
+    public function test_admin_input_records_phone_numbers_with_the_fixed_country_prefix(): void
+    {
+        $this->signIn('admin');
+        $this->travelTo(now()->startOfSecond());
+        $campaign = $this->campaign();
+
+        foreach (['81234567890', '81234567891', '81234567892', '81234567893'] as $index => $phone) {
+            Livewire::test(ListPhoneRedemptions::class)
+                ->callAction('redeemPhone', data: ['campaign_id' => $campaign->id, 'phone_number' => $phone])
+                ->assertHasNoActionErrors();
+
+            $this->assertDatabaseHas('phone_redemptions', [
+                'campaign_id' => $campaign->id,
+                'phone_number' => '+628123456789'.$index,
+                'outlet_code' => '998877',
+                'redeemed_at' => now()->format('Y-m-d H:i:s'),
+            ]);
+        }
+        $this->assertDatabaseCount('phone_redemptions', 4);
+        $this->assertDatabaseCount('outlet_vouchers', 0);
+    }
+
+    public function test_admin_input_rejects_a_number_already_redeemed_at_the_same_outlet(): void
+    {
+        $this->signIn('admin');
+        $this->record($this->campaign(), '+6281234567890');
+        $campaign = $this->campaign();
+
+        Livewire::test(ListPhoneRedemptions::class)
+            ->callAction('redeemPhone', data: ['campaign_id' => $campaign->id, 'phone_number' => '81234567890'])
+            ->assertHasActionErrors(['phone_number' => 'Nomor ini sudah redeem.']);
+        $this->assertDatabaseCount('phone_redemptions', 1);
+    }
+
+    public function test_admin_input_allows_the_same_phone_at_a_different_outlet(): void
+    {
+        $this->signIn('admin');
+        $this->record($this->campaign(), '+6281234567890');
+        $campaign = $this->campaign(['phone_outlet_code' => '001122']);
+
+        Livewire::test(ListPhoneRedemptions::class)
+            ->callAction('redeemPhone', data: ['campaign_id' => $campaign->id, 'phone_number' => '81234567890'])
+            ->assertHasNoActionErrors();
+        $this->assertDatabaseHas('phone_redemptions', [
+            'campaign_id' => $campaign->id, 'phone_number' => '+6281234567890', 'outlet_code' => '001122',
+        ]);
+        $this->assertDatabaseCount('phone_redemptions', 2);
+    }
+
+    public function test_admin_input_rejects_invalid_numbers_and_unconfigured_campaigns(): void
+    {
+        $this->signIn('admin');
+        $campaign = $this->campaign();
+        foreach (['', '812', '8123456789x', '081234567890', '6281234567890', '+6281234567890', '812-3456-7890'] as $phone) {
+            Livewire::test(ListPhoneRedemptions::class)
+                ->callAction('redeemPhone', data: ['campaign_id' => $campaign->id, 'phone_number' => $phone])
+                ->assertHasActionErrors(['phone_number']);
+        }
+        $disabled = $this->campaign(['phone_outlet_code' => null]);
+        Livewire::test(ListPhoneRedemptions::class)
+            ->callAction('redeemPhone', data: ['campaign_id' => $disabled->id, 'phone_number' => '81234567890'])
+            ->assertHasActionErrors(['campaign_id']);
+        $this->assertDatabaseCount('phone_redemptions', 0);
+    }
+
+    public function test_admin_input_cannot_use_campaigns_outside_the_users_role(): void
+    {
+        $financeOwner = $this->signIn('finance');
+        $campaign = $this->campaign(['created_by' => $financeOwner->id]);
+        $this->signIn('sales');
+
+        Livewire::test(ListPhoneRedemptions::class)
+            ->callAction('redeemPhone', data: ['campaign_id' => $campaign->id, 'phone_number' => '81234567890'])
+            ->assertHasActionErrors(['campaign_id']);
+        $this->assertDatabaseCount('phone_redemptions', 0);
     }
 
     private function campaign(array $attributes = []): Campaigns

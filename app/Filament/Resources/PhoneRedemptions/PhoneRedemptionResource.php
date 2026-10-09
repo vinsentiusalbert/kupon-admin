@@ -32,7 +32,7 @@ class PhoneRedemptionResource extends Resource
 
     public static function canCreate(): bool
     {
-        return false;
+        return static::canViewAny();
     }
 
     public static function canEdit($record): bool
