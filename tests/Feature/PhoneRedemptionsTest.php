@@ -11,6 +11,7 @@ use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use OpenSpout\Reader\XLSX\Reader;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -252,6 +253,69 @@ class PhoneRedemptionsTest extends TestCase
             ->callAction('redeemPhone', data: ['campaign_id' => $campaign->id, 'phone_number' => '81234567890'])
             ->assertHasActionErrors(['campaign_id']);
         $this->assertDatabaseCount('phone_redemptions', 0);
+    }
+
+    public function test_excel_export_preserves_text_and_wib_and_respects_filters(): void
+    {
+        $this->signIn('admin');
+        $campaign = $this->campaign(['campaign_name' => '=1+1', 'phone_outlet_code' => '001122']);
+        $record = $this->record($campaign, '+6281234567890');
+        $record->update(['redeemed_at' => '2026-09-22 03:15:30']);
+        $this->record($campaign, '+6289876543210');
+        $this->record($this->campaign(), '+6281234567891');
+
+        $component = Livewire::test(ListPhoneRedemptions::class)
+            ->filterTable('campaign_id', $campaign->id)
+            ->searchTable('628123456789')
+            ->callAction('exportExcel')->assertFileDownloaded();
+
+        $this->assertSame([
+            ['Nomor HP', 'Campaign', 'Kode outlet', 'Waktu redeem (WIB)'],
+            ['+6281234567890', '=1+1', '001122', '22/09/2026 10:15:30'],
+        ], $this->exportedRows($component));
+    }
+
+    public function test_excel_export_includes_all_pages_but_only_authorized_campaigns(): void
+    {
+        $finance = $this->signIn('finance');
+        $this->record($this->campaign(['created_by' => $finance->id]), '+6289999999999');
+        $sales = $this->signIn('sales');
+        $campaign = $this->campaign(['created_by' => $sales->id]);
+        for ($i = 0; $i < 30; $i++) {
+            $this->record($campaign, '+62812345678'.sprintf('%02d', $i));
+        }
+
+        $component = Livewire::test(ListPhoneRedemptions::class)
+            ->callAction('exportExcel')->assertFileDownloaded();
+        $rows = $this->exportedRows($component);
+        $this->assertCount(31, $rows);
+        $this->assertNotContains('+6289999999999', array_column($rows, 0));
+
+        $component = Livewire::test(ListPhoneRedemptions::class)
+            ->searchTable('no-matching-record')->callAction('exportExcel')->assertFileDownloaded();
+        $this->assertCount(1, $this->exportedRows($component));
+    }
+
+    private function exportedRows($component): array
+    {
+        $path = tempnam(sys_get_temp_dir(), 'phone-export-');
+        $reader = new Reader;
+
+        try {
+            file_put_contents($path, base64_decode($component->effects['download']['content']));
+            $reader->open($path);
+            $rows = [];
+            foreach ($reader->getSheetIterator() as $sheet) {
+                foreach ($sheet->getRowIterator() as $row) {
+                    $rows[] = $row->toArray();
+                }
+            }
+
+            return $rows;
+        } finally {
+            $reader->close();
+            unlink($path);
+        }
     }
 
     private function campaign(array $attributes = []): Campaigns

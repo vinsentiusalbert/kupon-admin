@@ -13,6 +13,10 @@ use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Validation\ValidationException;
+use OpenSpout\Common\Entity\Cell\StringCell;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Writer\XLSX\Writer;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ListPhoneRedemptions extends ListRecords
 {
@@ -21,6 +25,41 @@ class ListPhoneRedemptions extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('exportExcel')
+                ->label('Export Excel')
+                ->icon(Heroicon::ArrowDownTray)
+                ->authorize(fn (): bool => PhoneRedemptionResource::canViewAny())
+                ->action(function (): StreamedResponse {
+                    $query = $this->getFilteredSortedTableQuery();
+
+                    return response()->streamDownload(function () use ($query): void {
+                        $writer = new Writer;
+                        $writer->openToFile('php://output');
+
+                        try {
+                            $writer->addRow(Row::fromValues([
+                                'Nomor HP', 'Campaign', 'Kode outlet', 'Waktu redeem (WIB)',
+                            ]));
+
+                            foreach ($query->lazy() as $redemption) {
+                                // Explicit text cells preserve prefixes/leading zeroes and prevent formulas.
+                                $writer->addRow(new Row(array_map(
+                                    fn (string $value): StringCell => new StringCell($value, null),
+                                    [
+                                        $redemption->phone_number,
+                                        $redemption->campaign?->campaign_name ?? '',
+                                        $redemption->outlet_code,
+                                        $redemption->redeemed_at?->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s') ?? '',
+                                    ],
+                                )));
+                            }
+                        } finally {
+                            $writer->close();
+                        }
+                    }, 'redeem-nomor-hp-'.now('Asia/Jakarta')->format('Y-m-d-His').'.xlsx', [
+                        'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    ]);
+                }),
             Action::make('redeemPhone')
                 ->label('Input Nomor HP')
                 ->icon(Heroicon::Plus)
